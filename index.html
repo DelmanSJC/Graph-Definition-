@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graph Visualization Tool</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #4CAF50;
+      --primary-dark-color: #388E3C;
+      --accent-color: #2196F3;
+      --accent-dark-color: #1976D2;
+      --background-color: #f0f2f5;
+      --card-background-color: #ffffff;
+      --text-color: #333;
+      --border-color: #ddd;
+      --highlight-node: #a5d6a7;
+      --highlight-edge: #ff5722;
+      --highlight-clicked-node-edge: #fdd835;
+      --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      --border-radius: 8px;
+      --crossed-edge-color-thick: #1565C0;
+      --invalid-path-color: #F44336;
+      --directed-edge-color: #FF5722;
+      --directed-edge-dark-color: #F4511E;
+      --mode-box-color: #2196F3;
+      --mode-box-selected: #4CAF50;
+    }
+
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+      overflow-x: hidden;
+    }
+
+    h2 {
+      color: var(--primary-dark-color);
+      margin-bottom: 20px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .container {
+      background-color: var(--card-background-color);
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      padding: 20px;
+      width: 100%;
+      max-width: 900px;
+      box-sizing: border-box;
+    }
+
+    .mode-box {
+      background-color: var(--mode-box-color);
+      border-radius: var(--border-radius);
+      padding: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      transition: background-color 0.3s ease;
+      min-height: 50px;
+      position: relative;
+    }
+
+    .mode-box.selected {
+      background-color: var(--mode-box-selected);
+    }
+
+    .mode-options {
+      display: flex;
+      position: relative;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .mode-option {
+      padding: 10px 20px;
+      font-size: 16px;
+      font-weight: 500;
+      color: #fff;
+      cursor: pointer;
+      transition: color 0.3s ease, font-weight 0.3s ease;
+      user-select: none;
+      text-align: center;
+      flex: 0 0 auto;
+      display: inline-block;
+    }
+
+    .mode-option:hover {
+      color: #e0e0e0;
+    }
+
+    .mode-option.active {
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .mode-option.slide-in {
+      animation: slide-in 0.3s ease forwards;
+    }
+
+    .mode-option.slide-out {
+      animation: slide-out 0.3s ease forwards;
+    }
+
+    @keyframes slide-in {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slide-out {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(-100%); opacity: 0; }
+    }
+
+    .panel {
+      display: none;
+      margin-bottom: 20px;
+    }
+
+    .panel.active {
+      display: block;
+    }
+
+    #graph-container {
+      width: 100%;
+      height: 500px;
+      border: 2px solid var(--border-color);
+      border-radius: var(--border-radius);
+      margin-bottom: 20px;
+      background-color: #fafafa;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px 15px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      font-size: 16px;
+      color: var(--text-color);
+      min-width: 120px;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: var(--border-radius);
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+      color: #fff;
+      min-width: 100px;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.graph-btn:not(#undoDelete):not(#redoDelete):not(#deleteVertex):not(#deleteEdge):not(#addDirectedEdge) {
+      background-color: var(--primary-color);
+    }
+
+    button.graph-btn:not(#undoDelete):not(#redoDelete):not(#deleteVertex):not(#deleteEdge):not(#addDirectedEdge):hover {
+      background-color: var(--primary-dark-color);
+    }
+
+    #addDirectedEdge {
+      background-color: var(--directed-edge-color);
+    }
+
+    #addDirectedEdge:hover {
+      background-color: var(--directed-edge-dark-color);
+    }
+
+    #undoDelete, #redoDelete {
+      background-color: #607D8B;
+    }
+
+    #undoDelete:hover, #redoDelete:hover {
+      background-color: #455A64;
+    }
+
+    #deleteVertex, #deleteEdge {
+      background-color: #F44336;
+    }
+
+    #deleteVertex:hover, #deleteEdge:hover {
+      background-color: #D32F2F;
+    }
+
+    button.konigsberg-btn {
+      background-color: var(--crossed-edge-color-thick);
+    }
+
+    button.konigsberg-btn:hover {
+      background-color: #0D47A1;
+    }
+
+    #resetKonigsberg {
+      background-color: #FF9800;
+    }
+
+    #resetKonigsberg:hover {
+      background-color: #FB8C00;
+    }
+
+    #resetToLastNode {
+      background-color: #9C27B0;
+    }
+
+    #resetToLastNode:hover {
+      background-color: #7B1FA2;
+    }
+
+    #result {
+      background: #e3f2fd;
+      border: 2px dashed #90CAF9;
+      border-radius: var(--border-radius);
+      padding: 15px 20px;
+      width: 100%;
+      box-sizing: border-box;
+      text-align: left;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    #result div {
+      margin-bottom: 8px;
+    }
+
+    #result div:last-child {
+      margin-bottom: 0;
+    }
+
+    .highlight-text {
+      font-weight: bold;
+      color: var(--primary-dark-color);
+    }
+
+    .konigsberg-path-text {
+      font-weight: bold;
+      color: var(--crossed-edge-color-thick);
+    }
+
+    @media (max-width: 768px) {
+      .mode-box {
+        padding: 5px;
+      }
+      .mode-option {
+        padding: 8px 15px;
+        font-size: 14px;
+      }
+      .button-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      input[type="text"], button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Graph Visualization Tool</h2>
+    <div class="mode-box" id="mode-box">
+      <div class="mode-options" id="mode-options">
+        <span class="mode-option active" data-mode="graph-definition">Graph Definition</span>
+        <span class="mode-option" data-mode="konigsberg-problem">Königsberg Bridge Problem</span>
+      </div>
+    </div>
+
+    <div id="graph-definition" class="panel active">
+      <div class="button-row">
+        <input type="text" id="vertex" placeholder="Vertex (e.g., A)" />
+        <button class="graph-btn" onclick="addVertex()">Add Vertex</button>
+      </div>
+      <div class="button-row">
+        <input type="text" id="from" placeholder="From (e.g., A)" />
+        <input type="text" id="to" placeholder="To (e.g., B)" />
+        <button class="graph-btn" onclick="addEdge(false)">Add Edge</button>
+        <button id="addDirectedEdge" class="graph-btn" onclick="addEdge(true)">Add Directed Edge</button>
+      </div>
+      <div class="button-row">
+        <button id="undoDelete" class="graph-btn" onclick="undoDelete()">↺ Undo (Ctrl+Z)</button>
+        <button id="redoDelete" class="graph-btn" onclick="redoDelete()">↻ Redo (Ctrl+Y)</button>
+        <button id="deleteVertex" class="graph-btn" onclick="deleteVertex()">Delete Vertex</button>
+        <button id="deleteEdge" class="graph-btn" onclick="deleteEdge()">Delete Edge</button>
+      </div>
+    </div>
+
+    <div id="konigsberg-problem" class="panel">
+      <div class="button-row">
+        <button id="resetKonigsberg" class="konigsberg-btn" onclick="resetKonigsberg()">Reset Königsberg Problem</button>
+        <button id="resetToLastNode" class="konigsberg-btn" onclick="resetToLastNode()">Reset to Last Node (Ctrl+R)</button>
+      </div>
+    </div>
+
+    <div id="graph-container"></div>
+
+    <div id="result">
+      <div><span class="highlight-text">V(G):</span> { }</div>
+      <div><span class="highlight-text">E(G):</span> { }</div>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById("graph-container");
+    const resultDiv = document.getElementById("result");
+    const modeBox = document.getElementById("mode-box");
+    const modeOptions = document.getElementById("mode-options");
+
+    const nodes = new vis.DataSet();
+    const edges = new vis.DataSet();
+
+    const undoStack = [];
+    const redoStack = [];
+
+    let selectedNode = null;
+    let selectedEdge = null;
+    let isKonigsbergLoaded = false;
+    const crossedEdges = new Set();
+    const konigsbergPath = [];
+    let lastClickedNodeId = null;
+    let currentMode = 'graph-definition';
+
+    const defaultNodeColor = '#a5d6a7';
+    const defaultEdgeColor = '#333';
+    const highlightedEdgeColor = '#ff5722';
+    const highlightedNodeColor = '#fdd835';
+    const crossedEdgeColor = '#1565C0';
+    const crossedEdgeWidth = 4;
+    const invalidPathColor = '#F44336';
+
+    const network = new vis.Network(container, { nodes, edges }, {
+      nodes: {
+        shape: 'circle',
+        color: { background: defaultNodeColor, highlight: highlightedNodeColor },
+        font: { size: 18, color: '#333', strokeWidth: 0 }
+      },
+      edges: {
+        color: { color: defaultEdgeColor, highlight: highlightedEdgeColor },
+        width: 2,
+        font: { align: 'top', color: '#444' },
+        arrows: { to: { enabled: false } },
+        smooth: { enabled: true, type: "dynamic" }
+      },
+      physics: {
+        enabled: true,
+        stabilization: { iterations: 2000 }
+      },
+      interaction: {
+        hover: true,
+        navigationButtons: true,
+        zoomView: true
+      }
+    });
+
+    function switchMode(mode) {
+      if (currentMode === mode) return;
+      const prevOption = document.querySelector(`.mode-option[data-mode="${currentMode}"]`);
+      const newOption = document.querySelector(`.mode-option[data-mode="${mode}"]`);
+
+      prevOption.classList.add('slide-out');
+      newOption.classList.add('slide-in');
+
+      setTimeout(() => {
+        prevOption.classList.remove('slide-out', 'active');
+        newOption.classList.remove('slide-in');
+        newOption.classList.add('active');
+        currentMode = mode;
+        modeBox.classList.add('selected');
+
+        document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
+        document.getElementById(mode).classList.add('active');
+
+        nodes.clear();
+        edges.clear();
+        undoStack.length = 0;
+        redoStack.length = 0;
+        resetPath();
+
+        if (mode === 'konigsberg-problem') {
+          isKonigsbergLoaded = true;
+          loadKonigsbergGraph();
+          displayMessage('Königsberg Bridge Problem loaded. Click vertices to start a continuous path!', 'info');
+        } else {
+          isKonigsbergLoaded = false;
+          displayMessage('Graph Definition mode. Create your own graph using the controls.', 'info');
+        }
+
+        updateResult();
+        resetColors();
+        network.fit();
+      }, 300);
+    }
+
+    document.querySelectorAll('.mode-option').forEach(option => {
+      option.addEventListener('click', () => switchMode(option.dataset.mode));
+      option.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        switchMode(option.dataset.mode);
+      });
+    });
+
+    function loadKonigsbergGraph() {
+      nodes.add([
+        { id: 'A', label: 'A', x: -150, y: 0, fixed: true },
+        { id: 'B', label: 'B', x: 150, y: 0, fixed: true },
+        { id: 'C', label: 'C', x: 0, y: -150, fixed: true },
+        { id: 'D', label: 'D', x: 0, y: 150, fixed: true }
+      ]);
+
+      edges.add([
+        { id: 'AB1', from: 'A', to: 'B', smooth: { enabled: true, type: 'curvedCW', roundness: 0.2 }, label: 'Bridge 1', directed: false },
+        { id: 'AB2', from: 'A', to: 'B', smooth: { enabled: true, type: 'curvedCCW', roundness: 0.2 }, label: 'Bridge 2', directed: false },
+        { id: 'BC1', from: 'B', to: 'C', smooth: { enabled: true, type: 'curvedCW', roundness: 0.2 }, label: 'Bridge 3', directed: false },
+        { id: 'BC2', from: 'B', to: 'C', smooth: { enabled: true, type: 'curvedCCW', roundness: 0.2 }, label: 'Bridge 4', directed: false },
+        { id: 'AD1', from: 'A', to: 'D', label: 'Bridge 5', directed: false },
+        { id: 'BD1', from: 'B', to: 'D', label: 'Bridge 6', directed: false },
+        { id: 'CD1', from: 'C', to: 'D', label: 'Bridge 7', directed: false }
+      ]);
+    }
+
+    function addVertex() {
+      if (currentMode !== 'graph-definition') return;
+      const label = document.getElementById("vertex").value.trim().toUpperCase();
+      if (label && !nodes.get(label)) {
+        nodes.add({ id: label, label });
+        updateResult();
+        document.getElementById("vertex").value = '';
+        displayMessage(`Vertex '${label}' added.`, 'info');
+      } else if (nodes.get(label)) {
+        displayMessage(`Vertex '${label}' already exists!`, 'warning');
+      } else {
+        displayMessage('Please enter a vertex name.', 'warning');
+      }
+    }
+
+    function deleteVertex() {
+      if (currentMode !== 'graph-definition') return;
+      const label = document.getElementById("vertex").value.trim().toUpperCase() || selectedNode;
+      if (label && nodes.get(label)) {
+        const nodeData = nodes.get(label);
+        const connectedEdges = network.getConnectedEdges(label);
+        const edgeData = connectedEdges.map(eid => edges.get(eid));
+
+        undoStack.push({ type: 'vertex', node: nodeData, edges: edgeData });
+        redoStack.length = 0;
+
+        nodes.remove(label);
+        edges.remove(connectedEdges);
+        updateResult();
+        document.getElementById("vertex").value = '';
+        selectedNode = null;
+        displayMessage(`Vertex '${label}' and its edges deleted.`, 'info');
+      } else if (label) {
+        displayMessage(`Vertex '${label}' not found!`, 'error');
+      } else {
+        displayMessage('Please enter or select a vertex to delete.', 'warning');
+      }
+    }
+
+    function addEdge(isDirected) {
+      if (currentMode !== 'graph-definition') return;
+      const from = document.getElementById("from").value.trim().toUpperCase();
+      const to = document.getElementById("to").value.trim().toUpperCase();
+      const id = isDirected ? `${from}-${to}-${Date.now()}` : [from, to].sort().join('-') + `-${Date.now()}`;
+
+      if (from && to && from !== to && nodes.get(from) && nodes.get(to)) {
+        const existingEdges = edges.get();
+        let edgeExists = false;
+
+        if (isDirected) {
+          edgeExists = existingEdges.some(e => e.from === from && e.to === to && e.directed);
+        } else {
+          edgeExists = existingEdges.some(e =>
+            ((e.from === from && e.to === to) || (e.from === to && e.to === from)) && !e.directed
+          );
+        }
+
+        if (!edgeExists) {
+          const edgeData = {
+            id,
+            from,
+            to,
+            directed: isDirected,
+            arrows: isDirected ? { to: { enabled: true, scaleFactor: 0.7 } } : { to: { enabled: false } }
+          };
+          edges.add(edgeData);
+          updateResult();
+          document.getElementById("from").value = '';
+          document.getElementById("to").value = '';
+          displayMessage(`Edge ${isDirected ? `(${from}, ${to})` : `{${from}, ${to}}`} added.`, 'info');
+        } else {
+          displayMessage(`Edge ${isDirected ? `(${from}, ${to})` : `{${from}, ${to}}`} already exists!`, 'warning');
+        }
+      } else if (from === to) {
+        displayMessage('Cannot add an edge from a vertex to itself.', 'warning');
+      } else {
+        displayMessage('Please ensure both vertices exist and are provided.', 'error');
+      }
+    }
+
+    function deleteEdge() {
+      if (currentMode !== 'graph-definition') return;
+      const fromInput = document.getElementById("from").value.trim().toUpperCase();
+      const toInput = document.getElementById("to").value.trim().toUpperCase();
+      let edgeIdToDelete = null;
+
+      if (fromInput && toInput) {
+        const foundEdge = edges.get().find(e =>
+          (e.from === fromInput && e.to === toInput && e.directed) ||
+          (!e.directed && ((e.from === fromInput && e.to === toInput) || (e.from === toInput && e.to === fromInput)))
+        );
+        if (foundEdge) edgeIdToDelete = foundEdge.id;
+      } else if (selectedEdge) {
+        edgeIdToDelete = selectedEdge;
+      }
+
+      const edge = edges.get(edgeIdToDelete);
+      if (edge) {
+        undoStack.push({ type: 'edge', edge });
+        redoStack.length = 0;
+        edges.remove(edgeIdToDelete);
+        updateResult();
+        document.getElementById("from").value = '';
+        document.getElementById("to").value = '';
+        selectedEdge = null;
+        displayMessage(`Edge ${edge.directed ? `(${edge.from}, ${edge.to})` : `{${edge.from}, ${edge.to}}`} deleted.`, 'info');
+      } else if (fromInput && toInput) {
+        displayMessage(`Edge ${fromInput}, ${toInput} not found!`, 'error');
+      } else {
+        displayMessage('Please enter or select an edge to delete.', 'warning');
+      }
+    }
+
+    function undoDelete() {
+      if (currentMode !== 'graph-definition') return;
+      const last = undoStack.pop();
+      if (!last) {
+        displayMessage('Nothing to undo!', 'info');
+        return;
+      }
+      redoStack.push(last);
+
+      if (last.type === 'vertex') {
+        nodes.add(last.node);
+        last.edges.forEach(e => {
+          if (!edges.get(e.id)) edges.add(e);
+        });
+        displayMessage(`Undid deletion of vertex '${last.node.id}'.`, 'info');
+      } else if (last.type === 'edge') {
+        if (!edges.get(last.edge.id)) edges.add(last.edge);
+        displayMessage(`Undid deletion of edge ${last.edge.directed ? `(${last.edge.from}, ${last.edge.to})` : `{${last.edge.from}, ${last.edge.to}}`}.`, 'info');
+      }
+      updateResult();
+      resetColors();
+    }
+
+    function redoDelete() {
+      if (currentMode !== 'graph-definition') return;
+      const last = redoStack.pop();
+      if (!last) {
+        displayMessage('Nothing to redo!', 'info');
+        return;
+      }
+      undoStack.push(last);
+
+      if (last.type === 'vertex') {
+        const connected = last.edges.map(e => e.id);
+        nodes.remove(last.node.id);
+        edges.remove(connected);
+        displayMessage(`Redid deletion of vertex '${last.node.id}'.`, 'info');
+      } else if (last.type === 'edge') {
+        edges.remove(last.edge.id);
+        displayMessage(`Redid deletion of edge ${last.edge.directed ? `(${last.edge.from}, ${last.edge.to})` : `{${last.edge.from}, ${last.edge.to}}`}.`, 'info');
+      }
+      updateResult();
+      resetColors();
+    }
+
+    function resetKonigsberg() {
+      if (currentMode !== 'konigsberg-problem' || !isKonigsbergLoaded) {
+        displayMessage('Königsberg problem not loaded.', 'warning');
+        return;
+      }
+
+      nodes.clear();
+      edges.clear();
+      resetPath();
+      loadKonigsbergGraph();
+      updateResult();
+      resetColors();
+      displayMessage('Königsberg problem reset. All bridges are uncrossed.', 'info');
+      network.fit();
+    }
+
+    function resetToLastNode() {
+      if (currentMode !== 'konigsberg-problem' || !isKonigsbergLoaded) return;
+      if (konigsbergPath.length > 0) {
+        const lastPathEntry = konigsbergPath[konigsbergPath.length - 1];
+        lastClickedNodeId = lastPathEntry.to;
+        crossedEdges.delete(lastPathEntry.edgeId);
+        konigsbergPath.pop();
+        updateResult();
+        resetColors();
+        displayMessage(`Reset to last vertex: ${lastClickedNodeId}. Click an adjacent vertex to continue.`, 'info');
+      } else {
+        lastClickedNodeId = null;
+        displayMessage('No path to reset. Click a vertex to start.', 'info');
+      }
+    }
+
+    function resetPath() {
+      crossedEdges.clear();
+      konigsbergPath.length = 0;
+      lastClickedNodeId = null;
+      selectedNode = null;
+      selectedEdge = null;
+      resetColors();
+    }
+
+    function checkEulerPath() {
+      if (!isKonigsbergLoaded) return;
+
+      const allNodes = nodes.get();
+      const currentEdges = edges.get();
+      const totalEdgesCount = currentEdges.length;
+
+      if (crossedEdges.size === totalEdgesCount) {
+        const visited = new Set();
+        function dfs(nodeId) {
+          visited.add(nodeId);
+          const neighbors = network.getConnectedNodes(nodeId);
+          neighbors.forEach(neighbor => {
+            if (!visited.has(neighbor)) dfs(neighbor);
+          });
+        }
+        if (allNodes.length > 0) dfs(allNodes[0].id);
+        const isConnected = visited.size === allNodes.length;
+
+        const degrees = {};
+        allNodes.forEach(node => (degrees[node.id] = 0));
+        currentEdges.forEach(edge => {
+          degrees[edge.from]++;
+          degrees[edge.to]++;
+        });
+
+        let oddDegreeNodes = 0;
+        for (const nodeId in degrees) {
+          if (degrees[nodeId] % 2 !== 0) oddDegreeNodes++;
+        }
+
+        let isValidPath = true;
+        if (konigsbergPath.length > 0) {
+          for (let i = 1; i < konigsbergPath.length; i++) {
+            if (konigsbergPath[i - 1].to !== konigsbergPath[i].from) {
+              isValidPath = false;
+              break;
+            }
+          }
+        } else {
+          isValidPath = false;
+        }
+
+        if (!isConnected) {
+          displayMessage('All bridges crossed, but the graph is disconnected.', 'error');
+        } else if (!isValidPath) {
+          displayMessage('All bridges crossed, but the path is not continuous.', 'error');
+          highlightInvalidPath();
+        } else if (oddDegreeNodes === 0) {
+          if (konigsbergPath[0].from === konigsbergPath[konigsbergPath.length - 1].to) {
+            displayMessage('All bridges crossed! Euler Circuit found.', 'success');
+          } else {
+            displayMessage('All bridges crossed, but not a circuit.', 'error');
+          }
+        } else if (oddDegreeNodes === 2) {
+          const oddNodes = Object.keys(degrees).filter(nodeId => degrees[nodeId] % 2 !== 0);
+          const pathStart = konigsbergPath[0].from;
+          const pathEnd = konigsbergPath[konigsbergPath.length - 1].to;
+          if (oddNodes.includes(pathStart) && oddNodes.includes(pathEnd)) {
+            displayMessage('All bridges crossed! Euler Path found.', 'success');
+          } else {
+            displayMessage('All bridges crossed, but not a valid Euler Path.', 'error');
+          }
+        } else {
+          displayMessage('All bridges crossed, but no Euler path/circuit exists (four odd-degree vertices).', 'error');
+        }
+      } else {
+        displayMessage(`Crossed ${crossedEdges.size} of ${totalEdgesCount} bridges. Continue from ${lastClickedNodeId || 'any vertex'}.`, 'info');
+      }
+    }
+
+    function highlightInvalidPath() {
+      if (konigsbergPath.length < 2) return;
+      for (let i = 1; i < konigsbergPath.length; i++) {
+        if (konigsbergPath[i - 1].to !== konigsbergPath[i].from) {
+          edges.update({ id: konigsbergPath[i].edgeId, color: { color: invalidPathColor }, width: crossedEdgeWidth });
+        }
+      }
+      setTimeout(resetColors, 2000);
+    }
+
+    function updateResult() {
+      const V = nodes.get().map(n => n.label).sort().join(', ');
+      const E = nodes.length > 0 ? edges.get().map(e => e.directed ? `(${e.from}, ${e.to}${e.label ? `:${e.label}` : ''})` : `{${[e.from, e.to].sort().join(', ')}${e.label ? `:${e.label}` : ''}}`).sort().join(', ') : '';
+
+      let resultHTML = `
+        <div><span class="highlight-text">V(G):</span> { ${V} }</div>
+        <div><span class="highlight-text">E(G):</span> { ${E} }</div>
+      `;
+
+      if (currentMode === 'graph-definition') {
+        const outDegreeMap = {};
+        nodes.get().forEach(node => outDegreeMap[node.id] = 0);
+        edges.get().forEach(edge => {
+          if (edge.directed) {
+            outDegreeMap[edge.from]++;
+          } else {
+            outDegreeMap[edge.from]++;
+            outDegreeMap[edge.to]++;
+          }
+        });
+        const domain = Object.keys(outDegreeMap).filter(v => outDegreeMap[v] > 0).sort().join(', ');
+
+        const inDegreeMap = {};
+        nodes.get().forEach(node => inDegreeMap[node.id] = 0);
+        edges.get().forEach(edge => {
+          if (edge.directed) {
+            inDegreeMap[edge.to]++;
+          } else {
+            inDegreeMap[edge.from]++;
+            inDegreeMap[edge.to]++;
+          }
+        });
+        const codomain = Object.keys(inDegreeMap).filter(v => inDegreeMap[v] > 0).sort().join(', ');
+
+        const incidence = edges.get().map(edge => {
+          const vertices = edge.directed ? `${edge.from} \u2192 ${edge.to}` : [edge.from, edge.to].sort().join(', ');
+          return `${edge.directed ? `(${edge.from}, ${edge.to})` : `{${[edge.from, edge.to].sort().join(', ')}}`} \u2192 {${vertices}}`;
+        }).join('; ');
+
+        resultHTML += `
+          <div><span class="highlight-text">Domain:</span> { ${domain || ''} }</div>
+          <div><span class="highlight-text">Codomain:</span> { ${codomain || ''} }</div>
+          <div><span class="highlight-text">Incidence:</span> { ${incidence || ''} }</div>
+        `;
+      } else if (currentMode === 'konigsberg-problem' && isKonigsbergLoaded) {
+        let pathInfo = '';
+        if (konigsbergPath.length > 0) {
+          const vertexSequence = [konigsbergPath[0].from, ...konigsbergPath.map(p => p.to)].join(' \u2192 ');
+          const edgeLabels = konigsbergPath.map(p => {
+            const edge = edges.get(p.edgeId);
+            return edge.label || `(${p.from}, ${p.to})`;
+          }).join(', ');
+          pathInfo = `${vertexSequence} (${edgeLabels})`;
+        } else {
+          pathInfo = 'Click a vertex to start a continuous path.';
+        }
+        resultHTML += `
+          <div><span class="konigsberg-path-text">Current Path:</span> ${pathInfo}</div>
+          <div><span class="highlight-text">Instructions:</span> Continue the path from ${lastClickedNodeId || 'any vertex'} or reset.</div>
+        `;
+      }
+
+      resultDiv.innerHTML = resultHTML;
+    }
+
+    function resetColors() {
+      nodes.get().forEach(n => {
+        nodes.update({ id: n.id, color: { background: defaultNodeColor, highlight: highlightedNodeColor } });
+      });
+
+      edges.get().forEach(e => {
+        let edgeUpdate = { id: e.id };
+        if (isKonigsbergLoaded && crossedEdges.has(e.id)) {
+          const pathEntry = konigsbergPath.find(p => p.edgeId === e.id);
+          if (pathEntry) {
+            let arrowConfig = { enabled: true, scaleFactor: 0.7, type: 'arrow' };
+            let newArrows = { to: false, from: false };
+            if (pathEntry.from === e.from && pathEntry.to === e.to) {
+              newArrows.to = arrowConfig;
+            } else if (pathEntry.from === e.to && pathEntry.to === e.from) {
+              newArrows.from = arrowConfig;
+            }
+            edgeUpdate.color = { color: crossedEdgeColor, highlight: highlightedEdgeColor };
+            edgeUpdate.width = crossedEdgeWidth;
+            edgeUpdate.arrows = newArrows;
+          }
+        } else {
+          edgeUpdate.color = { color: defaultEdgeColor, highlight: highlightedEdgeColor };
+          edgeUpdate.width = 2;
+          edgeUpdate.arrows = e.directed ? { to: { enabled: true, scaleFactor: 0.7 } } : { to: { enabled: false }, from: { enabled: false } };
+        }
+        edges.update(edgeUpdate);
+      });
+
+      if (lastClickedNodeId && isKonigsbergLoaded) {
+        nodes.update({ id: lastClickedNodeId, color: { background: highlightedNodeColor } });
+      }
+    }
+
+    function displayMessage(message, type = 'info') {
+      const messageDiv = document.createElement('div');
+      messageDiv.textContent = message;
+      messageDiv.style.marginTop = '10px';
+      messageDiv.style.padding = '8px 15px';
+      messageDiv.style.borderRadius = '5px';
+      messageDiv.style.fontWeight = '500';
+      messageDiv.style.textAlign = 'center';
+      messageDiv.style.color = '#fff';
+
+      if (type === 'error') {
+        messageDiv.style.backgroundColor = '#EF5350';
+      } else if (type === 'warning') {
+        messageDiv.style.backgroundColor = '#FFCA28';
+      } else if (type === 'success') {
+        messageDiv.style.backgroundColor = '#4CAF50';
+      } else {
+        messageDiv.style.backgroundColor = '#66BB6A';
+      }
+
+      messageDiv.style.transition = 'opacity 0.5s ease-out';
+      messageDiv.style.opacity = '1';
+
+      resultDiv.appendChild(messageDiv);
+
+      setTimeout(() => {
+        messageDiv.style.opacity = '0';
+        setTimeout(() => messageDiv.remove(), 500);
+      }, 3000);
+    }
+
+    network.on("click", function (params) {
+      if (params.nodes.length > 0) {
+        const currentNodeId = params.nodes[0];
+
+        if (currentMode === 'konigsberg-problem' && isKonigsbergLoaded) {
+          if (!lastClickedNodeId) {
+            lastClickedNodeId = currentNodeId;
+            selectedNode = currentNodeId;
+            selectedEdge = null;
+            displayMessage(`Started path at ${currentNodeId}. Click an adjacent vertex to continue.`, 'info');
+            resetColors();
+          } else if (lastClickedNodeId === currentNodeId) {
+            displayMessage(`Already at ${currentNodeId}. Click an adjacent vertex to continue.`, 'warning');
+            resetColors();
+          } else {
+            const potentialEdges = edges.get({
+              filter: function (edge) {
+                return ((edge.from === lastClickedNodeId && edge.to === currentNodeId) ||
+                        (edge.from === currentNodeId && edge.to === lastClickedNodeId)) &&
+                       !crossedEdges.has(edge.id);
+              }
+            });
+
+            if (potentialEdges.length > 0) {
+              const edgeToCross = potentialEdges[0];
+              const originalEdgeId = edgeToCross.id;
+              const directedFrom = lastClickedNodeId;
+              const directedTo = currentNodeId;
+
+              let arrowConfig = { enabled: true, scaleFactor: 0.7, type: 'arrow' };
+              let newArrows = { to: false, from: false };
+              if (directedFrom === edgeToCross.from && directedTo === edgeToCross.to) {
+                newArrows.to = arrowConfig;
+              } else if (directedFrom === edgeToCross.to && directedTo === edgeToCross.from) {
+                newArrows.from = arrowConfig;
+              }
+
+              edges.update({
+                id: originalEdgeId,
+                color: { color: crossedEdgeColor },
+                width: crossedEdgeWidth,
+                arrows: newArrows
+              });
+
+              crossedEdges.add(originalEdgeId);
+              konigsbergPath.push({ from: directedFrom, to: directedTo, edgeId: originalEdgeId });
+              displayMessage(`Traversed ${edgeToCross.label}. Continue from ${directedTo}.`, 'info');
+              lastClickedNodeId = currentNodeId;
+              selectedNode = currentNodeId;
+              selectedEdge = null;
+              updateResult();
+              resetColors();
+              checkEulerPath();
+            } else {
+              displayMessage(`Cannot continue from ${lastClickedNodeId} to ${currentNodeId}. No uncrossed bridge connects them. Select a vertex adjacent to ${lastClickedNodeId}.`, 'warning');
+              resetColors();
+            }
+          }
+        } else {
+          selectedNode = currentNodeId;
+          selectedEdge = null;
+          displayMessage(`Vertex ${currentNodeId} selected.`, 'info');
+          nodes.update({ id: currentNodeId, color: { background: highlightedNodeColor } });
+          setTimeout(resetColors, 500);
+        }
+      } else if (params.edges.length > 0) {
+        const edgeId = params.edges[0];
+        const edge = edges.get(edgeId);
+        selectedEdge = edgeId;
+        selectedNode = null;
+        if (isKonigsbergLoaded) lastClickedNodeId = konigsbergPath.length > 0 ? konigsbergPath[konigsbergPath.length - 1].to : null;
+        displayMessage(`Edge selected: ${edge.label || (edge.directed ? `(${edge.from}, ${edge.to})` : `{${edge.from}, ${edge.to}}`)}.`, 'info');
+
+        nodes.update([
+          { id: edge.from, color: { background: highlightedNodeColor } },
+          { id: edge.to, color: { background: highlightedNodeColor } }
+        ]);
+
+        if (isKonigsbergLoaded && crossedEdges.has(edgeId)) {
+          const pathEntry = konigsbergPath.find(p => p.edgeId === edgeId);
+          if (pathEntry) {
+            let arrowConfig = { enabled: true, scaleFactor: 0.7, type: 'arrow' };
+            let newArrows = { to: false, from: false };
+            if (pathEntry.from === edge.from && pathEntry.to === edge.to) {
+              newArrows.to = arrowConfig;
+            } else if (pathEntry.from === edge.to && pathEntry.to === edge.from) {
+              newArrows.from = arrowConfig;
+            }
+            edges.update({
+              id: edgeId,
+              color: { color: crossedEdgeColor },
+              width: crossedEdgeWidth,
+              arrows: newArrows
+            });
+          }
+        } else {
+          edges.update({ id: edgeId, color: { color: highlightedEdgeColor } });
+        }
+        setTimeout(resetColors, 500);
+      } else {
+        if (isKonigsbergLoaded) lastClickedNodeId = konigsbergPath.length > 0 ? konigsbergPath[konigsbergPath.length - 1].to : null;
+        selectedNode = null;
+        selectedEdge = null;
+        displayMessage('Click a vertex or edge to interact.', 'info');
+        resetColors();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && currentMode === 'graph-definition') {
+        e.preventDefault();
+        undoDelete();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && currentMode === 'graph-definition') {
+        e.preventDefault();
+        redoDelete();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r' && currentMode === 'konigsberg-problem') {
+        e.preventDefault();
+        resetToLastNode();
+      }
+    });
+
+    updateResult();
+  </script>
+</body>
+</html>
